@@ -6,7 +6,7 @@ import torch
 import numpy as np
 import cv2
 import imutils
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 import clip
 
 
@@ -48,22 +48,32 @@ def select_largest_contour(input_m):
     return new_m, area
 
 
-def cut_out(masks: list, image: np.ndarray, background_color=None):
-    h, w = image.shape[:2]
-    # create image from mask
+# def cut_out(masks: list, image: np.ndarray, background_color=None):
+#     h, w = image.shape[:2]
+#     # create image from mask
+#     cut_out = []
+#     if background_color is not None:
+#         background = np.ones((h, w, 3), dtype=np.uint8) * 157
+#     else:
+#         background = np.ones((h, w, 3), dtype=np.uint8) * background_color
+#     for m in masks:
+#         binary_mask = np.expand_dims(m['segmentation'].astype(int), axis=-1)
+#         if background is not None:
+#             new_img = image * binary_mask + (1 - binary_mask) * background
+#         else:
+#             new_img = image * binary_mask
+#         new_img = new_img.astype(np.uint8)
+#         cut_out.append(new_img)
+#     return cut_out
+
+
+def cut_out(masks: list, image: np.ndarray, pad=10):
     cut_out = []
-    if background_color is not None:
-        background = np.ones((h, w, 3), dtype=np.uint8) * 157
-    else:
-        background = None
     for m in masks:
-        binary_mask = np.expand_dims(m['segmentation'].astype(int), axis=-1)
-        if background is not None:
-            new_img = image * binary_mask + (1 - binary_mask) * background
-        else:
-            new_img = image * binary_mask
-        new_img = new_img.astype(np.uint8)
-        cut_out.append(new_img)
+        mask = m['segmentation']
+        ys, xs = np.where(mask > 0)
+        x_min, x_max, y_min, y_max = xs.min(), xs.max(), ys.min(), ys.max()
+        cut_out.append(image[y_min - pad: y_max + pad, x_min - pad: x_max + pad])
     return cut_out
 
 
@@ -71,6 +81,7 @@ class SAMWithCLIP:
     def __init__(self,
                  sam_checkpoint="sam_weights/sam_vit_b_01ec64.pth",
                  sam_model_type="vit_b",
+                 sam_predictor_type='auto',      # ['auto', 'points']
                  device="cuda",
                  crop=None,
                  min_area=0.001,
@@ -78,12 +89,19 @@ class SAMWithCLIP:
                  iou_thresh=0.9,
                  overlap_thresh=0.9,
                  clip_model_type='ViT-B/32',
-                 prompts=['cucumber', 'leaf', 'blob']
+                 prompts=['cucumber', 'leaf', 'blob'],
+                 keep_indices=None
                  ):
         self.device = device
         self.sam = sam_model_registry[sam_model_type](checkpoint=sam_checkpoint)
         self.sam.to(device=self.device)
-        self.mask_generator = SamAutomaticMaskGenerator(self.sam)      # TODO: parameters?
+        self.sam_predictor_type = sam_predictor_type
+        if self.sam_predictor_type == 'auto':
+            self.mask_generator = SamAutomaticMaskGenerator(self.sam)      # TODO: parameters?
+        elif self.sam_predictor_type == 'points':
+            self.mask_generator = SamPredictor(self.sam)
+        else:
+            raise ValueError
 
         # parameters for mask filtering
         self.crop = crop
@@ -97,10 +115,17 @@ class SAMWithCLIP:
         self.prompts = prompts
         self.text_features = self.clip_prompt_encode(prompts)
 
-    def generate_masks(self, img):
+    def generate_masks(self, img, point_coords=None):
         img = self.crop_image(img)
         h, w = img.shape[:2]
-        masks = self.mask_generator.generate(img)
+        if isinstance(self.mask_generator, SamAutomaticMaskGenerator):
+            masks = self.mask_generator.generate(img)
+        else:
+            if point_coords is None:
+                raise ValueError("Must provide points' coordinates when using 'points' mode")
+            self.mask_generator.set_image(img, image_format='RGB')
+            masks = self.mask_generator.predict(point_coords=point_coords)
+            self.mask_generator.reset_image()
 
         min_max_area_masks = []
         for m in masks:
@@ -151,8 +176,8 @@ class SAMWithCLIP:
         return image_features
 
     def mask_classification(self, masks: list, image, background_color=255):
-        cut_out_imgs = cut_out(masks, image, background_color)
-
+        # cut_out_imgs = cut_out(masks, image, background_color)
+        cut_out_imgs = cut_out(masks, image, pad=0)
         image_features = [self.clip_image_encode(img) for img in cut_out_imgs]
         image_features = torch.cat(image_features, dim=0)
         text_features = self.text_features.clone()
@@ -166,5 +191,4 @@ class SAMWithCLIP:
         if self.crop is not None:
             crop_x1, crop_y1, crop_x2, crop_y2 = self.crop
             img = img[crop_y1: crop_y2, crop_x1: crop_x2]
-            return img
         return img
