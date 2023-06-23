@@ -12,6 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--image_dir', required=True, help='Input image folder')
     parser.add_argument('-o', '--output_dir', required=True, help='Path to save output mask')
+    parser.add_argument('--mode', default='auto', help='SAM prediction mode: ["auto", "points"]')
     return parser.parse_args()
 
 
@@ -27,7 +28,9 @@ def segment_with_sam(sam_with_clip: SAMWithCLIP, img_path: Union[str, pathlib.Pa
 
 def main():
     args = parse_args()
-    sam_with_clip = SAMWithCLIP(crop=(55, 310, 506, 720))
+    # sam_with_clip = SAMWithCLIP(crop=(55, 310, 506, 720))
+    sam_with_clip = SAMWithCLIP(sam_predictor_type=args.mode,
+                                prompts=['cucumber', 'leaf', 'dark blob', 'color checker', 'ruler'])
     image_dir = pathlib.Path(args.image_dir)
     out_dir = pathlib.Path(args.output_dir)
     out_dir.mkdir(exist_ok=True, parents=True)
