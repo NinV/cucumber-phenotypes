@@ -48,25 +48,6 @@ def select_largest_contour(input_m):
     return new_m, area
 
 
-# def cut_out(masks: list, image: np.ndarray, background_color=None):
-#     h, w = image.shape[:2]
-#     # create image from mask
-#     cut_out = []
-#     if background_color is not None:
-#         background = np.ones((h, w, 3), dtype=np.uint8) * 157
-#     else:
-#         background = np.ones((h, w, 3), dtype=np.uint8) * background_color
-#     for m in masks:
-#         binary_mask = np.expand_dims(m['segmentation'].astype(int), axis=-1)
-#         if background is not None:
-#             new_img = image * binary_mask + (1 - binary_mask) * background
-#         else:
-#             new_img = image * binary_mask
-#         new_img = new_img.astype(np.uint8)
-#         cut_out.append(new_img)
-#     return cut_out
-
-
 def cut_out(masks: list, image: np.ndarray, pad=10):
     cut_out = []
     for m in masks:
@@ -82,6 +63,7 @@ class SAMWithCLIP:
                  sam_checkpoint="sam_weights/sam_vit_b_01ec64.pth",
                  sam_model_type="vit_b",
                  sam_predictor_type='auto',      # ['auto', 'points']
+                 point_coords=None,
                  device="cuda",
                  crop=None,
                  min_area=0.001,
@@ -99,7 +81,7 @@ class SAMWithCLIP:
         if self.sam_predictor_type == 'auto':
             self.mask_generator = SamAutomaticMaskGenerator(self.sam)      # TODO: parameters?
         elif self.sam_predictor_type == 'points':
-            self.mask_generator = SamPredictor(self.sam)
+            self.mask_generator = SamAutomaticMaskGenerator(self.sam, points_per_side=None, point_grids=[point_coords])
         else:
             raise ValueError
 
@@ -115,18 +97,10 @@ class SAMWithCLIP:
         self.prompts = prompts
         self.text_features = self.clip_prompt_encode(prompts)
 
-    def generate_masks(self, img, point_coords=None):
+    def generate_masks(self, img):
         img = self.crop_image(img)
         h, w = img.shape[:2]
-        if isinstance(self.mask_generator, SamAutomaticMaskGenerator):
-            masks = self.mask_generator.generate(img)
-        else:
-            if point_coords is None:
-                raise ValueError("Must provide points' coordinates when using 'points' mode")
-            self.mask_generator.set_image(img, image_format='RGB')
-            masks = self.mask_generator.predict(point_coords=point_coords)
-            self.mask_generator.reset_image()
-
+        masks = self.mask_generator.generate(img)
         min_max_area_masks = []
         for m in masks:
             if self.min_area * h * w < m['area'] < self.max_area * h * w:
