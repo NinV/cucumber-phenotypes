@@ -63,7 +63,7 @@ def main():
     else:
         point_coords = None
     sam_with_clip = SAMWithCLIP(sam_predictor_type=args.mode,
-                                prompts=['cucumber', 'leaf', 'dark blob', 'number'],
+                                prompts=['cucumber', 'dark blob', 'text note'],
                                 point_coords=point_coords)
     image_dir = pathlib.Path(args.image_dir)
     out_dir = pathlib.Path(args.output_dir)
