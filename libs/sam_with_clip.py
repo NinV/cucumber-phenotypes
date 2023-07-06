@@ -48,13 +48,23 @@ def select_largest_contour(input_m):
     return new_m, area
 
 
-def cut_out(masks: list, image: np.ndarray, pad=10):
+def cut_out(masks: list, image: np.ndarray, pad=10, make_square_crop=False):
     cut_out = []
     for m in masks:
         mask = m['segmentation']
         ys, xs = np.where(mask > 0)
         x_min, x_max, y_min, y_max = xs.min(), xs.max(), ys.min(), ys.max()
-        cut_out.append(image[y_min - pad: y_max + pad, x_min - pad: x_max + pad])
+        if make_square_crop:
+            w, h = x_max - x_min, y_max - y_min
+            if w > h:
+                pad_x, pad_y = 0, (w - h) // 2,
+            else:
+                pad_x, pad_y = (h - w) // 2, 0
+        else:
+            pad_x, pad_y = 0, 0
+
+        cut_out.append(image[max(0, y_min - pad_y - pad): y_max + pad_y + pad,
+                             max(0, x_min - pad_x - pad): x_max + pad_x + pad])
     return cut_out
 
 
@@ -66,13 +76,12 @@ class SAMWithCLIP:
                  point_coords=None,
                  device="cuda",
                  crop=None,
-                 min_area=0.001,
+                 min_area=0.0005,
                  max_area=0.5,
                  iou_thresh=0.9,
                  overlap_thresh=0.9,
                  clip_model_type='ViT-B/32',
                  prompts=['cucumber', 'leaf', 'blob'],
-                 keep_indices=None
                  ):
         self.device = device
         self.sam = sam_model_registry[sam_model_type](checkpoint=sam_checkpoint)
@@ -151,7 +160,7 @@ class SAMWithCLIP:
 
     def mask_classification(self, masks: list, image, background_color=255):
         # cut_out_imgs = cut_out(masks, image, background_color)
-        cut_out_imgs = cut_out(masks, image, pad=0)
+        cut_out_imgs = cut_out(masks, image, pad=10)
         image_features = [self.clip_image_encode(img) for img in cut_out_imgs]
         image_features = torch.cat(image_features, dim=0)
         text_features = self.text_features.clone()
