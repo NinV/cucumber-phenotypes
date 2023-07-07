@@ -80,10 +80,13 @@ def main():
             dest = str(out_result_dir / '{}.png'.format(i))
             seg = m['segmentation']
             cv2.imwrite(dest, seg.astype(int) * 255)
-            meta.append({'mask_file': dest, 'predicted_class': sam_with_clip.prompts[class_indices[i]]})
+            meta.append({'mask_file': dest,
+                         'predicted_class': sam_with_clip.prompts[class_indices[i]],
+                         'bbox': m['bbox']
+                         })
 
         with open(out_result_dir / 'label.json', 'w') as f:
-            json.dump(meta, f)
+            json.dump(meta, f, indent=2)
         shutil.copy(imf, out_result_dir / imf.name)
 
 

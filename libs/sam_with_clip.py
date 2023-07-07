@@ -27,13 +27,16 @@ def calc_mask_iou(m1, m2):
     iou = intersection_area / union_area
     m1_overlap = intersection_area / m1['area']
     m2_overlap = intersection_area / m2['area']
+    x1_min, y1_min, x1_max, y1_max = m1['bbox']
+    x2_min, y2_min, x2_max, y2_max = m2['bbox']
     return {'iou': iou,
             'm1_overlap': m1_overlap,
             'm2_overlap': m2_overlap,
             'intersection': intersection,
             'intersection_area': intersection_area,
             'union': union,
-            'union_area': union_area}
+            'union_area': union_area,
+            'union_box': (min(x1_min, x2_min), min(y1_min, y2_min), max(x1_max, x2_max), max(y1_max, y2_max))}
 
 
 def select_largest_contour(input_m):
@@ -45,7 +48,9 @@ def select_largest_contour(input_m):
     new_m = np.zeros((h, w), dtype=np.uint8)
     new_m = cv2.drawContours(new_m, cnts, 0, color=255, thickness=-1)
     area = cv2.contourArea(cnts[0])
-    return new_m, area
+    x, y, w, h = cv2.boundingRect(cnts[0])
+
+    return new_m, area, (x, y, x + w, y + h)
 
 
 def cut_out(masks: list, image: np.ndarray, pad=10, make_square_crop=False):
@@ -113,7 +118,7 @@ class SAMWithCLIP:
         min_max_area_masks = []
         for m in masks:
             if self.min_area * h * w < m['area'] < self.max_area * h * w:
-                m['segmentation'], m['area'] = select_largest_contour(m)
+                m['segmentation'], m['area'], m['bbox'] = select_largest_contour(m)
                 min_max_area_masks.append(m)
 
         # merge_indices, merge_masks = self.find_overlap_masks(min_max_area_masks)
@@ -127,13 +132,15 @@ class SAMWithCLIP:
             pivot = indices.pop()
             merge_indices[pivot] = []
             merge_masks[pivot] = {'segmentation': masks[pivot]['segmentation'],
-                                  'area': masks[pivot]['area']}
+                                  'area': masks[pivot]['area'],
+                                  'bbox': masks[pivot]['bbox']}
             for i in indices:
                 pair_stats = calc_mask_iou(merge_masks[pivot], masks[i])
                 if pair_stats['iou'] > self.iou_thresh or pair_stats['m2_overlap'] > self.overlap_thresh:
                     merge_indices[pivot].append(i)
                     merge_masks[pivot]['segmentation'] = pair_stats['union']
                     merge_masks[pivot]['area'] = pair_stats['union_area']
+                    merge_masks[pivot]['bbox'] = pair_stats['union_box']
             indices.difference_update(merge_indices[pivot])
 
         merge_masks_list = list(merge_masks.values())
