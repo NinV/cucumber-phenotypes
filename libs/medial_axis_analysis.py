@@ -2,6 +2,7 @@ from typing import Optional
 import numpy as np
 import cv2
 from skimage.morphology import skeletonize, medial_axis
+from sklearn.cluster import KMeans
 from scipy.interpolate import splprep, splev
 from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon
 
@@ -84,10 +85,20 @@ def derivative(tck, t, h=1e-5):
     return (p2 - p1) / (2 * h)
 
 
-def get_intersection_coordinates(geometry):
-    if isinstance(geometry, LineString) and len(geometry.coords) == 2:
-        return geometry
-    raise ValueError
+def get_intersection_coordinates(geometry, num_points=2, method='exact'):
+    if method == 'exact':   # TODO: consider remove this case
+        if isinstance(geometry, LineString) and len(geometry.coords) == num_points:
+            return geometry
+        raise ValueError
+    else:       # K-mean with k=num_points
+        if isinstance(geometry, MultiPoint):
+            points = np.array([p.coords[0] for p in geometry.geoms])
+            if len(points) == num_points:
+                return points
+            clustering_model = KMeans(n_clusters=num_points, n_init='auto')
+            clustering_model.fit(points)
+            return clustering_model.cluster_centers_
+        raise ValueError
 
 
 class CucumberShape:
@@ -111,12 +122,12 @@ class CucumberShape:
         curve_points = splev(t, skel_tck)
         curve_points = np.array([(x, y) for (x, y) in zip(*curve_points)])
         curve_line = LineString(coordinates=curve_points)
-        p1, p2 = curve_line.intersection(boundary).boundary.geoms
-        intersections = np.array([[p1.x, p1.y], [p2.x, p2.y]])
+        # p1, p2 = curve_line.intersection(boundary).boundary.geoms
+        # intersections = np.array([[p1.x, p1.y], [p2.x, p2.y]])
+        intersections = get_intersection_coordinates(curve_line.intersection(boundary).boundary, num_points=2, method='k-mean')
         intersect_cdist = cdist(curve_points, intersections)
         p1_idx, p2_idx = np.argmin(intersect_cdist, axis=0)
-        curve_points[p1_idx] = p1.x, p1.y
-        curve_points[p2_idx] = p2.x, p2.y
+        curve_points[p1_idx], curve_points[p2_idx] = intersections[0], intersections[1]
         curve_points = curve_points[min(p1_idx, p2_idx): max(p1_idx, p2_idx) + 1]
         curve_tck = curve_fitting(curve_points, k=self.bspline_k)
         return curve_tck, skeleton, coords, boundary
@@ -147,7 +158,6 @@ class CucumberShape:
                 width_line_segment = get_intersection_coordinates(intersections)
             except ValueError:
                 continue
-            # p1, p2 = coords
             normal_lines.append(width_line_segment)
             widths.append(normal_lines[-1].length)
             indices.append(i)
