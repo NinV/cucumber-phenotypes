@@ -26,7 +26,8 @@ def visualize(mask_file):
 
     binary_mask = cv2.imread(str(binary_mask_file), cv2.IMREAD_GRAYSCALE)
     analyzer = CucumberShape()
-    tck, _, _, boundary = analyzer.find_medial_axis(binary_mask)
+    tck, skeleton, _, boundary = analyzer.find_medial_axis(binary_mask)
+    cv2.imwrite(str(binary_mask_file.parent / ('skel' + binary_mask_file.with_suffix('.png').name)), skeleton.astype(np.uint8) * 255)
     cm_per_pixel = 0.1048
     num_samples = 200
 
@@ -81,8 +82,12 @@ def main():
         # 'no_stem/warped_17/0.png',
         # 'no_stem/warped_17/1.png',
         # 'no_stem/warped_17/3.png',
-        'no_stem/warped_17/4.png',
-        'no_stem/warped_17/5.png'
+        # 'no_stem/warped_17/4.png',
+        # 'no_stem/warped_17/5.png'
+        # "test_set/small_objects/warped_51/1.png",
+        # "test_set/small_objects/warped_30/5.png",
+        # "test_set/small_objects/warped_201B/3.png",
+        "test_set/test_91_sort_coords/warped_10/5.png"
     ]
 
     for f in file_list:

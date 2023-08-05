@@ -1,4 +1,5 @@
 from typing import Optional
+from itertools import combinations
 import numpy as np
 import cv2
 from skimage.morphology import skeletonize, medial_axis
@@ -9,6 +10,7 @@ from shapely.geometry import Point, MultiPoint, LineString, MultiLineString, Pol
 from scipy.spatial.distance import cdist
 from matplotlib import pyplot as plt
 import networkx as nx
+from sklearn.neighbors import radius_neighbors_graph
 
 
 def calc_skeleton_line(binary_mask, method='zhang'):
@@ -38,6 +40,33 @@ def build_polygon(binary_mask):
     points = [tuple(point[0]) for point in largest_contour]
     polygon = Polygon(points)
     return polygon
+
+
+def find_main_branch(coords, r=1.5):
+    dist = cdist(coords, coords)
+    adj_matrix = (dist < r) - np.eye(coords.shape[0])
+    node_degrees = adj_matrix.sum(axis=1)
+    leaf_nodes = (node_degrees == 1).nonzero()[0]
+
+    graph = nx.Graph(adj_matrix)
+    if len(leaf_nodes) == 1:        # assume the skeleton thickness is 1 pixel
+        raise ValueError
+    elif len(leaf_nodes) == 2:
+        sorted_coords = coords[nx.shortest_path(graph, source=leaf_nodes[0], target=leaf_nodes[1])]
+    else:
+        c = combinations(leaf_nodes, 2)
+        longest_routes = None
+        num_nodes = 0
+        for src, target in c:
+            route = nx.shortest_path(graph, source=src, target=target)
+            if len(route) > num_nodes:
+                longest_routes = route
+                num_nodes = len(route)
+        sorted_coords = coords[longest_routes]
+
+    if sorted_coords[0, 1] > sorted_coords[-1, 1]:      # assume the stem is always on top
+        sorted_coords = sorted_coords[::-1]
+    return sorted_coords
 
 
 def chord_length_parameterization_method(tck, num_samples=1000):
@@ -108,9 +137,9 @@ class CucumberShape:
         self.bspline_s = bspline_s
         self.bspline_num_points = bspline_num_points
 
-    def find_medial_axis(self, binary_mask):
+    def find_medial_axis(self, binary_mask, delta_t=0.5):
         skeleton, coords = calc_skeleton_line(binary_mask, self.skel_method)
-
+        coords = find_main_branch(coords)
         if self.bspline_s == 'auto':
             skel_tck = curve_fitting(coords, k=self.bspline_k)
         else:
@@ -118,7 +147,7 @@ class CucumberShape:
         boundary = build_polygon(binary_mask)
 
         # extending the bspline curve to find intersection
-        t = np.linspace(-0.1, 1.1, self.bspline_num_points)
+        t = np.linspace(-delta_t, 1 + delta_t, self.bspline_num_points)
         curve_points = splev(t, skel_tck)
         curve_points = np.array([(x, y) for (x, y) in zip(*curve_points)])
         curve_line = LineString(coordinates=curve_points)
