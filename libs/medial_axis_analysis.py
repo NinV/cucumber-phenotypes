@@ -236,53 +236,59 @@ class CucumberShape:
         return profiles
 
     @staticmethod
-    def plot_chart(profile, save_loc='plot.png', conversion_scale=1, unit='pixels'):
+    def plot_chart(profile, save_loc='plot.png', conversion_scale=1, unit='pixels',
+                   show_width_median=True, show_stem=True, show_abs_change_rate=True):
         max_y = np.max(profile['widths']) * conversion_scale
         max_x = np.max(profile['cumulative_lengths']) * conversion_scale
         plt.plot(profile['cumulative_lengths'] * conversion_scale,
                  profile['widths'] * conversion_scale,
                  label='width', color='#1f77b4')
-        plt.plot(profile['cumulative_lengths'] * conversion_scale,
-                 profile['abs_change_rate'] * conversion_scale,
-                 label='abs. change rate', color='#ff7f0e')
-        plt.axhline(y=profile['width_median'] * conversion_scale, color='magenta', linestyle='--', label="width median")
-        plt.text(x=max_x / 2,
-                 y=profile['width_median'] * conversion_scale + 0.02 * max_y,
-                 s=round(profile['width_median'] * conversion_scale, 2),
-                 color='magenta')
+
+        if show_abs_change_rate:
+            plt.plot(profile['cumulative_lengths'] * conversion_scale,
+                     profile['abs_change_rate'] * conversion_scale,
+                     label='abs. change rate', color='#ff7f0e')
+
+        if show_width_median:
+            plt.axhline(y=profile['width_median'] * conversion_scale, color='magenta', linestyle='--', label="width median")
+            plt.text(x=max_x / 2,
+                     y=profile['width_median'] * conversion_scale + 0.02 * max_y,
+                     s=round(profile['width_median'] * conversion_scale, 2),
+                     color='magenta')
 
         # peak thresholding
-        plt.axhline(y=profile['abs_peak_threshold'] * conversion_scale, color='r', linestyle='--', label="peak thresh.")
-        plt.text(x=max_x / 2,
-                 y=profile['abs_peak_threshold'] * conversion_scale + 0.02 * max_y,
-                 s=round(profile['abs_peak_threshold'] * conversion_scale, 2),
-                 color='r')
-        peak_idx = profile['peak_idx']
-        stem_idx = profile['stem_idx']
-        plt.axvline(x=profile['cumulative_lengths'][peak_idx] * conversion_scale,
-                    color='gray', linestyle='--')
-        plt.axhline(y=profile['abs_change_rate'][peak_idx] * conversion_scale, color='#ff7f0e', linestyle='--')
-        plt.plot(profile['cumulative_lengths'][peak_idx] * conversion_scale,
-                 profile['abs_change_rate'][peak_idx] * conversion_scale, '^', color='#ff7f0e',
-                 label='peak change rate')
-        plt.text(
-                 # x=profile['cumulative_lengths'][idx] * conversion_scale,
-                 x=max_x / 2,
-                 y=profile['abs_change_rate'][peak_idx] * conversion_scale + 0.02 * max_y,
-                 s=round(profile['abs_change_rate'][peak_idx] * conversion_scale, 2),
-                 color='#ff7f0e')
+        if show_stem:
+            plt.axhline(y=profile['abs_peak_threshold'] * conversion_scale, color='r', linestyle='--', label="peak thresh.")
+            plt.text(x=max_x / 2,
+                     y=profile['abs_peak_threshold'] * conversion_scale + 0.02 * max_y,
+                     s=round(profile['abs_peak_threshold'] * conversion_scale, 2),
+                     color='r')
+            peak_idx = profile['peak_idx']
+            stem_idx = profile['stem_idx']
+            plt.axvline(x=profile['cumulative_lengths'][peak_idx] * conversion_scale,
+                        color='gray', linestyle='--')
+            plt.axhline(y=profile['abs_change_rate'][peak_idx] * conversion_scale, color='#ff7f0e', linestyle='--')
+            plt.plot(profile['cumulative_lengths'][peak_idx] * conversion_scale,
+                     profile['abs_change_rate'][peak_idx] * conversion_scale, '^', color='#ff7f0e',
+                     label='peak change rate')
+            plt.text(
+                     # x=profile['cumulative_lengths'][idx] * conversion_scale,
+                     x=max_x / 2,
+                     y=profile['abs_change_rate'][peak_idx] * conversion_scale + 0.02 * max_y,
+                     s=round(profile['abs_change_rate'][peak_idx] * conversion_scale, 2),
+                     color='#ff7f0e')
 
-        # plt.axhline(y=profile['widths'][stem_idx] * conversion_scale, color='#1f77b4', linestyle='--')
-        plt.plot(profile['cumulative_lengths'][stem_idx] * conversion_scale,
-                 profile['widths'][stem_idx] * conversion_scale, 'o', color='#1f77b4',
-                 label='stem point')
-        plt.text(
-            # x=max_x / 2,
-            x=profile['cumulative_lengths'][stem_idx] * conversion_scale + 0.02 * max_x,
-            # y=profile['widths'][stem_idx] * conversion_scale + 0.02 * max_y,
-            y=profile['widths'][stem_idx] * conversion_scale,
-            s=(round(profile['cumulative_lengths'][stem_idx] * conversion_scale, 2), round(profile['widths'][stem_idx] * conversion_scale, 2)),
-            color='#1f77b4')
+            # plt.axhline(y=profile['widths'][stem_idx] * conversion_scale, color='#1f77b4', linestyle='--')
+            plt.plot(profile['cumulative_lengths'][stem_idx] * conversion_scale,
+                     profile['widths'][stem_idx] * conversion_scale, 'o', color='#1f77b4',
+                     label='stem point')
+            plt.text(
+                # x=max_x / 2,
+                x=profile['cumulative_lengths'][stem_idx] * conversion_scale + 0.02 * max_x,
+                # y=profile['widths'][stem_idx] * conversion_scale + 0.02 * max_y,
+                y=profile['widths'][stem_idx] * conversion_scale,
+                s=(round(profile['cumulative_lengths'][stem_idx] * conversion_scale, 2), round(profile['widths'][stem_idx] * conversion_scale, 2)),
+                color='#1f77b4')
 
         plt.xlabel('cumulative length ({})'.format(unit))
         plt.ylabel('{}'.format(unit))
