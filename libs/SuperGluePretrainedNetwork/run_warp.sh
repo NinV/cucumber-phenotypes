@@ -1,10 +1,10 @@
 #!/bin/bash
-ROOT_DIR="agri_phenotyping"
+ROOT_DIR="../../data"
 TEMPLATE_FILE="board_template_images/A1-v1/A1-0004-v1.jpg"
-IMG_DIR="fruits"
+IMG_DIR="test_set/test_91_images"
 IMG_PAIRS="pairs.txt"
 RESIZE="800"
-MATCH_THRES="0.9"
+MATCH_THRES="0.5"
 MATCH_OUT_DIR="${ROOT_DIR}/match"
 WARP_OUT_DIR="${ROOT_DIR}/warped"
 
@@ -13,7 +13,7 @@ echo -e "######################### Template / Img pairs ########################
 head "${ROOT_DIR}/${IMG_PAIRS}"
 
 python match_pairs.py --input_pairs "${ROOT_DIR}/${IMG_PAIRS}" --input_dir "${ROOT_DIR}" \
-  --output_dir "${MATCH_OUT_DIR}" --resize "${RESIZE}"  --match_threshold "${MATCH_THRES}"
+  --output_dir "${MATCH_OUT_DIR}" --resize "${RESIZE}"  --match_threshold "${MATCH_THRES}" --viz
 
 python warp.py --input_pairs "${ROOT_DIR}/${IMG_PAIRS}" --input_dir "${ROOT_DIR}" \
   -m "${MATCH_OUT_DIR}" --resize "${RESIZE}" -o "${WARP_OUT_DIR}"
